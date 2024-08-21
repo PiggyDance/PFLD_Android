@@ -14,13 +14,12 @@ model.eval()
 # 定义图像转换操作
 transform = torchvision.transforms.Compose([
     transforms.Resize([112, 112]),  # 调整图像大小
-    # transforms.CenterCrop(224),  # 中心裁剪
     torchvision.transforms.ToTensor(),
-    # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) # 正规化
 ])
 
 # 加载图像并应用转换
 img = Image.open('input.jpg')
+original_size = img.size  # (width, height)
 input_tensor = transform(img)
 
 # 增加批量维度 shape:(3,922,736) (channel,height,width)
@@ -33,16 +32,24 @@ with torch.no_grad():
 landmarks = landmarks.numpy()  # shape:(1,196)
 landmarks = landmarks.reshape(landmarks.shape[0], -1, 2)  # landmark
 
-show_img = np.array(np.transpose(input_tensor.numpy(), (1, 2, 0)))
-show_img = (show_img * 255).astype(np.uint8)
-np.clip(show_img, 0, 255)
-
+# 如果 landmarks 是归一化到 0-1 之间的坐标
 pre_landmark = landmarks[0] * [112, 112]
 
-cv2.imwrite("show_img.jpg", show_img)
-img_clone = cv2.imread("show_img.jpg")
+# 将 landmarks 从112x112图像映射回原始图像尺寸
+pre_landmark[:, 0] = pre_landmark[:, 0] * (original_size[0] / 112.0)
+pre_landmark[:, 1] = pre_landmark[:, 1] * (original_size[1] / 112.0)
 
+# 将输入张量转换为图像并显示
+show_img = input_tensor.permute(1, 2, 0).numpy()  # 转换为 (H, W, C) 顺序
+show_img = (show_img * 255).astype(np.uint8)
+show_img = cv2.cvtColor(show_img, cv2.COLOR_RGB2BGR)  # 转换为 BGR 顺序
+
+# 读取图像进行绘制
+img_clone = cv2.imread("input.jpg")
+
+# 绘制关键点
 for (x, y) in pre_landmark.astype(np.int32):
-    cv2.circle(img_clone, (x, y), 1, (255, 0, 0), -1)
-cv2.imshow("show_img.jpg", img_clone)
+    cv2.circle(img_clone, (x, y), 3, (255, 0, 0), -1)
+
+cv2.imshow("show_img", img_clone)
 cv2.waitKey(0)
